@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude · Live Activity & Dynamic Island — design exploration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --p:0;
+  --clay:#D97757; --clay-2:#E8957A; --cream:#F3EDE4;
+  --amber:#F2B544; --green:#3FCB6A; --red:#FF5F57;
+  --ink:#141312; --panel:#1C1B19; --panel-2:#252320; --line:rgba(255,255,255,.08);
+  --t1:#EFEAE2; --t2:rgba(239,234,226,.62); --t3:rgba(239,234,226,.4);
+  --isl-t2:rgba(235,235,245,.62);
+  --m100:100ms; --m150:150ms; --m200:200ms; --m300:300ms;
+  --out:cubic-bezier(.16,1,.3,1); --in:cubic-bezier(.7,0,.84,0);
+  --island:cubic-bezier(.32,.72,0,1);
+  --font:-apple-system,"SF Pro Text","Inter",system-ui,sans-serif;
+  --accent:var(--clay);
+}
+html[data-state=paused]{--accent:#8E8A84}
+html[data-state=input]{--accent:var(--amber)}
+html[data-state=done]{--accent:var(--green)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ink);color:var(--t1);font-family:var(--font);-webkit-font-smoothing:antialiased;line-height:1.5}
+button{font:inherit;color:inherit;cursor:pointer}
+.tnum{font-variant-numeric:tabular-nums}
+.wrap{max-width:1240px;margin:0 auto;padding:40px 32px 96px}
+header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:32px;flex-wrap:wrap}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--clay);font-weight:600;display:flex;align-items:center;gap:8px}
+h1{font-size:40px;line-height:1.1;letter-spacing:-.02em;margin:8px 0 8px;font-weight:700;max-width:720px}
+.lede{color:var(--t2);max-width:640px;margin:0;font-size:16px}
+.stage{display:grid;grid-template-columns:auto minmax(320px,380px);gap:48px;align-items:start;justify-content:center}
+@media (max-width:900px){.stage{grid-template-columns:1fr;justify-items:center}}
+
+/* ───────── Phone ───────── */
+.phone-hold{--s:.8;width:calc(417px*var(--s));height:calc(876px*var(--s));position:relative}
+.phone{width:417px;height:876px;transform:scale(var(--s));transform-origin:top left;position:absolute;inset:0 auto auto 0;
+  border-radius:68px;background:#1a1a1a;padding:12px;box-shadow:0 0 0 2px #3a3836,0 0 0 5px #121110,0 40px 80px rgba(0,0,0,.5)}
+.screen{position:relative;width:393px;height:852px;border-radius:56px;overflow:hidden;touch-action:none;user-select:none;
+  background:
+   radial-gradient(120% 70% at 85% 105%, #D97757 0%, rgba(217,119,87,0) 60%),
+   radial-gradient(90% 60% at 0% 60%, #6B4A63 0%, rgba(107,74,99,0) 65%),
+   radial-gradient(100% 60% at 70% 20%, #2B3A5C 0%, rgba(43,58,92,0) 70%),
+   linear-gradient(180deg,#151A2B 0%,#2A2234 55%,#4A2E2B 100%)}
+.sbar{position:absolute;top:18px;left:0;right:0;display:flex;justify-content:space-between;padding:0 28px 0 36px;font-size:15px;font-weight:600;color:#fff;z-index:1}
+.sbar .r{display:flex;gap:6px;align-items:center}
+.lock-date{position:absolute;top:78px;width:100%;text-align:center;font-size:19px;font-weight:600;color:rgba(255,255,255,.85)}
+.lock-time{position:absolute;top:96px;width:100%;text-align:center;font-size:94px;font-weight:700;letter-spacing:-.02em;color:rgba(255,255,255,.92);line-height:1.1}
+.qbtn{position:absolute;bottom:44px;width:50px;height:50px;border-radius:50%;background:rgba(0,0,0,.28);backdrop-filter:blur(20px);display:grid;place-items:center}
+.qbtn.l{left:46px}.qbtn.r{right:46px}
+.home-ind{position:absolute;bottom:8px;left:50%;width:140px;height:5px;margin-left:-70px;border-radius:3px;background:#fff}
+.toast{position:absolute;left:50%;bottom:118px;transform:translate(-50%,8px);opacity:0;background:rgba(20,19,18,.85);backdrop-filter:blur(20px);
+  padding:10px 16px;border-radius:999px;font-size:14px;font-weight:500;white-space:nowrap;pointer-events:none;
+  transition:opacity var(--m150) var(--in),transform var(--m150) var(--in);z-index:30}
+.toast.show{opacity:1;transform:translate(-50%,0);transition:opacity var(--m200) var(--out),transform var(--m200) var(--out)}
+
+/* ───────── Clawd ───────── */
+.clawd{display:block;overflow:visible}
+.clawd .body,.clawd .arm,.clawd .leg{fill:var(--clay)}
+.clawd .eye{fill:#000}
+.clawd *{transform-box:fill-box;transform-origin:center}
+.clawd .fx{opacity:0}
+.clawd[data-run="1"] .l1,.clawd[data-run="1"] .l3{animation:legA .36s steps(1) infinite}
+.clawd[data-run="1"] .l2,.clawd[data-run="1"] .l4{animation:legB .36s steps(1) infinite}
+@keyframes legA{0%{transform:translateY(0)}50%{transform:translateY(-.8px)}}
+@keyframes legB{0%{transform:translateY(-.8px)}50%{transform:translateY(0)}}
+.clawd[data-m=thinking] .all{animation:bob 1.2s ease-in-out infinite}
+.clawd[data-m=thinking] .think{opacity:1}
+.clawd[data-m=thinking] .think rect{animation:dot 1.2s steps(1) infinite}
+.clawd[data-m=thinking] .think rect:nth-child(2){animation-delay:.2s}
+.clawd[data-m=thinking] .think rect:nth-child(3){animation-delay:.4s}
+@keyframes bob{50%{transform:translateY(-.6px)}}
+@keyframes dot{0%{opacity:.25}33%{opacity:1}66%{opacity:.25}}
+.clawd[data-m=reading] .eyes{animation:scan 1.6s steps(1) infinite}
+@keyframes scan{0%{transform:translateX(-.6px)}50%{transform:translateX(.6px)}}
+.clawd[data-m=writing] .aL{animation:type .24s steps(1) infinite}
+.clawd[data-m=writing] .aR{animation:type .24s steps(1) infinite .12s}
+@keyframes type{50%{transform:translateY(-.8px)}}
+.clawd[data-m=testing] .all{animation:hop .5s steps(2) infinite}
+@keyframes hop{50%{transform:translateY(-.8px)}}
+.clawd[data-m=waiting] .aR{transform:translate(.4px,-1.6px)}
+.clawd[data-m=waiting] .aR{animation:wave .6s steps(1) infinite}
+@keyframes wave{50%{transform:translate(.4px,-2.4px)}}
+.clawd[data-m=waiting] .bang{opacity:1}
+.clawd[data-m=done] .all{animation:hop 1s steps(2) 2}
+.clawd[data-m=done] .spark{opacity:1;animation:dot 1s steps(1) infinite}
+.clawd[data-m=paused] .eye{transform:scaleY(.3)}
+.clawd[data-m=paused] .zz{opacity:1;animation:dot 1.8s steps(1) infinite}
+.clawd .bang rect{fill:var(--amber)} .clawd .spark rect{fill:var(--green)} .clawd .think rect,.clawd .zz text{fill:#fff}
+
+/* ───────── Shared progress ───────── */
+.track{position:relative;height:6px;border-radius:3px;background:rgba(255,255,255,.16)}
+.track .fill{position:absolute;inset:0;border-radius:3px;background:var(--accent);transform-origin:left;transform:scaleX(calc(var(--p) / 100));
+  transition:transform var(--m300) var(--out),background-color var(--m300) var(--out)}
+.track .rail{position:absolute;inset:0;transform:translateX(calc((var(--p) - 100) * 1%));transition:transform var(--m300) var(--out);pointer-events:none}
+.track .walker{position:absolute;right:0;bottom:2px;transform:translateX(50%)}
+.track .tick{position:absolute;top:1px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:rgba(0,0,0,.45)}
+.track .end{position:absolute;right:-3px;top:-3px;width:12px;height:12px;border-radius:50%;border:2px solid rgba(255,255,255,.5);background:#000}
+.ring{transform:rotate(-90deg)}
+.ring .bg{stroke:rgba(255,255,255,.18)}
+.ring .fg{stroke:var(--accent);stroke-dasharray:100;stroke-dashoffset:calc(100 - var(--p));transition:stroke-dashoffset var(--m300) var(--out),stroke var(--m300)}
+
+/* ───────── Dynamic Island ───────── */
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:126px;height:37px;border-radius:19px;background:#000;z-index:20;color:#fff;
+  box-shadow:0 0 0 .5px rgba(217,119,87,.35);
+  transition:width var(--m300) var(--island),height var(--m300) var(--island),border-radius var(--m300) var(--island);outline:none}
+.island:focus-visible{box-shadow:0 0 0 2px var(--clay)}
+.island[data-pres=compact]{width:222px}.island[data-pres=minimal]{width:150px}
+.island[data-pres=limited]{width:166px}
+.island[data-pres=expanded]{width:371px;height:156px;border-radius:44px}
+.island[data-pres=ended]{width:126px}
+.layer{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity var(--m100) var(--in)}
+.island[data-pres=compact] .L-compact,.island[data-pres=expanded] .L-expanded,.island[data-pres=minimal] .L-minimal,.island[data-pres=limited] .L-limited{
+  opacity:1;pointer-events:auto;transition:opacity var(--m200) var(--out) var(--m150)}
+.L-compact .lead{position:absolute;left:12px;top:50%;transform:translateY(-50%)}
+.L-compact .trail{position:absolute;right:10px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--accent)}
+.badge{width:20px;height:20px;border-radius:50%;display:none;place-items:center;font-size:13px;font-weight:700;color:#000}
+html[data-state=input] .badge.inp{display:grid;background:var(--amber)}
+html[data-state=done] .badge.ok{display:grid;background:var(--green)}
+html[data-state=paused] .badge.pz{display:grid;background:rgba(255,255,255,.22);color:#fff}
+.ring-only{display:flex}
+html[data-state=input] .ring-only,html[data-state=done] .ring-only,html[data-state=paused] .ring-only{display:none}
+.L-expanded{padding:12px 20px 16px}
+.ex-top{display:flex;justify-content:space-between;align-items:center;height:28px}
+.ex-top .who{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--isl-t2)}
+.ex-top .time{font-size:15px;font-weight:600;color:var(--accent)}
+.ex-mid{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:10px}
+.ex-verb{font-size:19px;font-weight:600;line-height:1.2;letter-spacing:-.01em}
+.ex-detail{font-size:14px;color:var(--isl-t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px}
+.ex-bottom{margin-top:16px;display:flex;align-items:center;gap:12px}
+.ex-bottom .track{flex:1}
+.ex-bottom .pct{font-size:13px;font-weight:600;color:var(--isl-t2);min-width:34px;text-align:right}
+.icon-btn{width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.14);display:grid;place-items:center;flex:none;
+  transition:background-color var(--m150) var(--out),transform var(--m100) var(--out)}
+.icon-btn:active{transform:scale(.94)}
+.pill{height:36px;padding:0 16px;border-radius:18px;border:0;font-size:15px;font-weight:600;background:rgba(255,255,255,.14);transition:transform var(--m100) var(--out)}
+.pill:active{transform:scale(.96)}
+.pill.primary{background:var(--accent);color:#1a0f0b}
+.pill.green{background:var(--green);color:#04150a}
+/* state-dependent visibility */
+.s-run,.s-pause,.s-input,.s-done{display:none!important}
+html[data-state=running] .s-run,html[data-state=paused] .s-pause,html[data-state=input] .s-input,html[data-state=done] .s-done{display:flex!important}
+html[data-state=running] .s-run.ib,html[data-state=paused] .s-pause.ib,html[data-state=done] .s-done.ib{display:grid!important}
+.L-minimal .lead,.L-limited .lead{position:absolute;left:8px;top:50%;transform:translateY(-50%)}
+.detached{position:absolute;top:11px;left:calc(50% + 81px);width:37px;height:37px;border-radius:50%;background:#000;z-index:20;display:grid;place-items:center;
+  opacity:0;transform:scale(.6);transition:opacity var(--m150) var(--in),transform var(--m150) var(--in);box-shadow:0 0 0 .5px rgba(217,119,87,.35)}
+.detached.on{opacity:1;transform:scale(1);transition:opacity var(--m200) var(--out) var(--m150),transform var(--m300) var(--island) var(--m150)}
+.mini{position:relative;width:28px;height:28px;display:grid;place-items:center}
+.mini .ring{position:absolute;inset:0}
+.mini .clawd{position:relative}
+
+/* ───────── Lock Screen activity ───────── */
+.la{position:absolute;left:11px;right:11px;top:262px;border-radius:26px;background:rgba(16,15,14,.78);backdrop-filter:blur(30px) saturate(140%);
+  color:#fff;overflow:hidden;touch-action:none;cursor:grab;transition:height var(--m300) var(--island)}
+.la.dragging{transition:none;cursor:grabbing}
+.la-inner{padding:14px 14px 0}
+.la-top{display:flex;justify-content:space-between;align-items:center;height:22px}
+.la-top .who{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--isl-t2)}
+.la-top .time{font-size:13px;font-weight:600;color:var(--accent)}
+.la-title{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-top:10px}
+.la-verb{font-size:22px;font-weight:700;letter-spacing:-.015em;line-height:1.2}
+.la-verb .acc{color:var(--accent)}
+.la-detail{font-size:15px;color:var(--isl-t2);margin-top:2px}
+.la .track{margin:26px 6px 0 4px}
+.grab{display:block;margin:12px auto 0;width:44px;height:22px;border:0;background:none;padding:0;position:relative}
+.grab::after{content:"";position:absolute;left:50%;top:9px;width:36px;height:5px;margin-left:-18px;border-radius:3px;background:rgba(255,255,255,.32)}
+.la-more{padding:4px 14px 14px;opacity:0}
+.steps{list-style:none;margin:6px 0 0;padding:0;border-top:1px solid rgba(255,255,255,.1)}
+.steps li{display:flex;align-items:center;gap:12px;height:38px;font-size:15px;color:var(--isl-t2)}
+.steps li .dotx{width:20px;height:20px;border-radius:50%;border:1.5px solid rgba(255,255,255,.28);display:grid;place-items:center;flex:none}
+.steps li .meta{margin-left:auto;font-size:13px;color:rgba(235,235,245,.45)}
+.steps li.done{color:rgba(235,235,245,.8)}
+.steps li.done .dotx{background:var(--green);border-color:var(--green)}
+.steps li.now{color:#fff;font-weight:600}
+.steps li.now .dotx{border-color:var(--accent);background:radial-gradient(circle,var(--accent) 0 4px,transparent 5px)}
+.chips{display:flex;gap:8px;margin:10px 0 14px;flex-wrap:wrap}
+.chip{font-size:13px;font-weight:500;padding:5px 10px;border-radius:8px;background:rgba(255,255,255,.08);color:rgba(235,235,245,.8)}
+.chip .plus{color:var(--green)} .chip .minus{color:var(--red)}
+.acts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.act{border:0;background:rgba(255,255,255,.1);border-radius:16px;height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:600;
+  transition:background-color var(--m150) var(--out),transform var(--m100) var(--out)}
+.act:active{transform:scale(.96)}
+.act.danger{color:var(--red)}
+.act.prim{background:var(--accent);color:#1a0f0b}
+.confirm{display:none;flex-direction:column;gap:10px;background:rgba(255,95,87,.12);border-radius:16px;padding:12px}
+.confirm p{margin:0;font-size:14px;color:rgba(235,235,245,.85)}
+.confirm .row{display:flex;gap:8px}.confirm .row .pill{flex:1}
+.la.confirming .confirm{display:flex}.la.confirming .acts{display:none}
+.pill.red{background:var(--red);color:#fff}
+
+/* ───────── Control panel ───────── */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:24px;position:sticky;top:24px}
+.panel h2{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);margin:0 0 10px}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--panel-2);border-radius:12px;padding:3px;gap:2px}
+.seg button{border:0;background:none;border-radius:9px;height:36px;font-size:13px;font-weight:600;color:var(--t2);transition:background-color var(--m150) var(--out),color var(--m150)}
+.seg button[aria-pressed=true]{background:#3a3733;color:var(--t1)}
+.row-btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel-2);font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:8px;
+  transition:background-color var(--m150) var(--out)}
+.btn:hover{background:#2e2b28}
+.btn.accent{background:var(--clay);border-color:var(--clay);color:#1a0f0b}
+.btn:focus-visible,.seg button:focus-visible,.act:focus-visible,.pill:focus-visible,.icon-btn:focus-visible,.grab:focus-visible{outline:2px solid var(--clay);outline-offset:2px}
+input[type=range]{width:100%;accent-color:var(--clay)}
+.scrub-l{display:flex;justify-content:space-between;font-size:13px;color:var(--t2);margin-bottom:6px}
+.hint{font-size:13px;color:var(--t2);margin:0;display:grid;gap:6px}
+.hint b{color:var(--t1);font-weight:600}
+.statusline{font-size:14px;color:var(--t2);border-top:1px solid var(--line);padding-top:16px}
+.statusline b{color:var(--t1)}
+label.tog{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--t2);cursor:pointer}
+label.tog input{accent-color:var(--clay);width:16px;height:16px}
+
+/* ───────── Below the fold ───────── */
+section.block{margin-top:96px}
+section.block > h2{font-size:28px;letter-spacing:-.015em;margin:0 0 8px}
+section.block > p.sub{color:var(--t2);margin:0 0 32px;max-width:640px}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.g-tile{background:#ECE7DF;border-radius:20px;padding:28px 16px 16px;display:flex;flex-direction:column;align-items:center;gap:20px;min-height:200px;justify-content:space-between}
+.g-tile.wide{grid-column:span 2}
+@media (max-width:620px){.g-tile.wide{grid-column:auto}}
+.g-tile .cap{align-self:stretch;display:flex;justify-content:space-between;font-size:13px;color:#4c4741}
+.g-tile .cap b{color:#1d1b19}
+.g-stage{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;min-height:40px;width:100%}
+.g-stage .island{position:relative;top:auto;left:auto;transform:none}
+.g-stage .detached{position:relative;top:auto;left:auto;opacity:1;transform:none}
+.g-tile .la{position:relative;left:auto;right:auto;top:auto;width:100%;max-width:371px;cursor:default;background:#1b1a18}
+.moods{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.mood{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.mood .pad{height:64px;display:grid;place-items:center}
+.mood b{font-size:14px}.mood span{font-size:12px;color:var(--t2);text-align:center}
+.rules{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.rule{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px}
+.rule b{display:block;font-size:15px;margin-bottom:4px}
+.rule p{margin:0;font-size:14px;color:var(--t2)}
+.rule .src{font-size:12px;color:var(--clay);margin-top:8px;font-weight:600}
+table.spec{width:100%;border-collapse:collapse;font-size:14px;background:var(--panel);border-radius:16px;overflow:hidden}
+table.spec th,table.spec td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--line)}
+table.spec th{color:var(--t3);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+table.spec td:first-child{color:var(--t1);font-weight:600}
+table.spec td{color:var(--t2)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+html.rm .clawd *,html.rm .clawd{animation:none!important}
+html.rm .island,html.rm .la{transition-duration:0s!important}
+@media (prefers-reduced-motion:reduce){.clawd *{animation:none!important}.island,.la{transition-duration:0s!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow"><span id="hdrSpark"></span>Design exploration · iOS Live Activity</div>
+      <h1>What if waiting for Claude felt like tracking a delivery?</h1>
+      <p class="lede">Clawd walks the progress track while Claude or Claude Code works in the background. You can glance at it in the Dynamic Island, touch and hold to expand it, or pull the Lock Screen card down for steps and controls.</p>
+    </div>
+  </header>
+
+  <div class="stage">
+    <div class="phone-hold" id="phoneHold">
+      <div class="phone">
+        <div class="screen" id="screen">
+          <div class="sbar"><span>Airtel</span><span class="r">
+            <svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><g fill="#fff"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></g></svg>
+            <svg width="27" height="13" viewBox="0 0 27 13" aria-hidden="true"><rect x=".5" y=".5" width="23" height="12" rx="3.5" stroke="rgba(255,255,255,.5)" fill="none"/><rect x="2" y="2" width="17" height="9" rx="2" fill="#fff"/><rect x="25" y="4.5" width="1.6" height="4" rx=".8" fill="rgba(255,255,255,.5)"/></svg>
+          </span></div>
+          <div id="islandMount"></div>
+          <div class="lock-date">Tuesday, 24 November</div>
+          <div class="lock-time">9:41</div>
+          <div id="laMount"></div>
+          <div class="qbtn l" aria-hidden="true"><svg width="16" height="26" viewBox="0 0 16 26"><path d="M3 1h10v4l-2 4v15a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9L3 5z" fill="#fff"/></svg></div>
+          <div class="qbtn r" aria-hidden="true"><svg width="26" height="20" viewBox="0 0 26 20"><path d="M3 4h4l2-3h8l2 3h4a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H3a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z" fill="#fff"/><circle cx="13" cy="11.5" r="4.5" fill="#333"/></svg></div>
+          <div class="home-ind"></div>
+          <div class="toast" id="toast" role="status"></div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="panel" aria-label="Prototype controls">
+      <div>
+        <h2>Task</h2>
+        <div class="seg" id="segScn">
+          <button data-scn="code" aria-pressed="true">Claude Code</button>
+          <button data-scn="chat" aria-pressed="false">Claude chat</button>
+        </div>
+      </div>
+      <div>
+        <h2>Dynamic Island presentation</h2>
+        <div class="seg" id="segPres">
+          <button data-pres="compact" aria-pressed="true">Compact</button>
+          <button data-pres="expanded" aria-pressed="false">Expanded</button>
+          <button data-pres="minimal" aria-pressed="false">Minimal</button>
+          <button data-pres="limited" aria-pressed="false">Limited</button>
+        </div>
+      </div>
+      <div>
+        <h2>Simulation</h2>
+        <div class="scrub-l"><span id="pState">Running</span><span class="tnum" id="pPct">0%</span></div>
+        <input type="range" id="scrub" min="0" max="100" step="0.5" value="0" aria-label="Task progress">
+        <div class="row-btns" style="margin-top:12px">
+          <button class="btn accent" id="btnPlay">Pause simulation</button>
+          <button class="btn" id="btnRestart">Restart</button>
+        </div>
+      </div>
+      <p class="hint">
+        <span><b>Touch and hold</b> the island to expand it. <b>Tap</b> it to open the app.</span>
+        <span><b>Pull down</b> the Lock Screen card to see steps and controls. Push it up to close.</span>
+        <span>At 68%, Claude Code asks permission to run tests. The island expands as an alert.</span>
+      </p>
+      <label class="tog"><input type="checkbox" id="rmTog"> Simulate Reduce Motion</label>
+      <div class="statusline" aria-live="polite" id="live"></div>
+    </aside>
+  </div>
+
+  <section class="block">
+    <h2>Every presentation, the same moment</h2>
+    <p class="sub">These are the presentations Apple requires, tied to the same live state as the phone. Leading and trailing views read as one piece of information, and Clawd keeps the same place as the island grows.</p>
+    <div class="gallery" id="gallery" inert></div>
+  </section>
+
+  <section class="block">
+    <h2>Clawd's states</h2>
+    <p class="sub">Each task phase gets its own small pixel-scale motion, so the state is readable even at 28pt in the island. Loops run only while work is happening, and all motion stops under Reduce Motion.</p>
+    <div class="moods" id="moods"></div>
+  </section>
+
+  <section class="block">
+    <h2>HIG rules this design follows</h2>
+    <p class="sub">From Apple's Live Activities guidance (updated 13 October 2026), and how each rule shapes this concept.</p>
+    <div class="rules">
+      <div class="rule"><b>Clear start and end, under 8 hours</b><p>Starts when you send a long task. When the task ends, the island clears right away, and the Lock Screen summary stays for 30 minutes.</p><div class="src">Best practices</div></div>
+      <div class="rule"><b>Black island, bold brand color</b><p>The island stays opaque black. Clay orange carries the identity and also marks the state: amber means Claude needs you, green means done.</p><div class="src">Choosing colors</div></div>
+      <div class="rule"><b>Compact reads as one unit</b><p>Clawd sits on the leading side and a progress ring on the trailing side, both snug to the camera and matched in size. Both open the same task screen.</p><div class="src">Compact presentation</div></div>
+      <div class="rule"><b>Minimal shows live data, not just a logo</b><p>The detached bubble wraps Clawd in a progress ring. At 28pt in limited width, it still shows progress.</p><div class="src">Minimal · limited width</div></div>
+      <div class="rule"><b>Expanded keeps the compact layout</b><p>Clawd and the time stay at the edges, and the track appears below them. The height is 156pt, inside the 84–160pt range.</p><div class="src">Expanded presentation</div></div>
+      <div class="rule"><b>One control, or a response</b><p>While running, the island has one control: Pause. A permission request is the exception, since you can act on it with Allow or Deny.</p><div class="src">Offering interactivity</div></div>
+      <div class="rule"><b>Alert only when essential</b><p>Only two events expand the island on their own: a permission request and completion. Step changes update quietly.</p><div class="src">Starting, updating, ending</div></div>
+      <div class="rule"><b>No sensitive content</b><p>Shows the task name, phase and counts. Code, prompts and file contents never appear on the Lock Screen.</p><div class="src">Best practices</div></div>
+      <div class="rule"><b>Animations under 2 seconds</b><p>Morphs take 300ms, content fades take 150–200ms, and the done hop runs twice and stops. Nothing animates on the Always-On display.</p><div class="src">Transitions</div></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>Motion spec</h2>
+    <p class="sub">Uses the 100 / 150 / 200 / 300ms tokens. Things that enter ease out, and things that leave ease in.</p>
+    <table class="spec">
+      <thead><tr><th>Element</th><th>Trigger</th><th>Duration · easing</th><th>Properties</th></tr></thead>
+      <tbody>
+        <tr><td>Island morph</td><td>Touch and hold, alert, collapse</td><td>300ms · cubic-bezier(.32,.72,0,1)</td><td>Shape (system-owned), no overshoot</td></tr>
+        <tr><td>Island content</td><td>Presentation change</td><td>Out 100ms ease-in → in 200ms ease-out, 150ms delay</td><td>opacity</td></tr>
+        <tr><td>Progress fill + Clawd</td><td>Each progress update</td><td>300ms · ease-out</td><td>transform (scaleX / translateX)</td></tr>
+        <tr><td>Lock Screen pull</td><td>Drag follows your finger, then snaps</td><td>Snap 300ms · island curve</td><td>Height follows finger; details fade in with drag</td></tr>
+        <tr><td>Clawd walk / type / scan</td><td>While running</td><td>Stepped 240–360ms loops, pixel-scale</td><td>transform; stops on pause, done, Reduce Motion</td></tr>
+        <tr><td>Done hop</td><td>Task completes</td><td>2 × 500ms, then rest</td><td>translateY</td></tr>
+      </tbody>
+    </table>
+  </section>
+</div>
+
+<script>
+/* ── Assets ───────────────────────────────────────────── */
+function clawd(w, fixed){
+  // Clawd: wide clay body, square eyes, side arm nubs, two pairs of legs
+  return `<svg class="clawd${fixed?' fixed':''}" ${fixed?`data-m="${fixed}" data-run="${fixed==='paused'||fixed==='done'?0:1}"`:''} style="width:${w}px" viewBox="-1 -4 16 14" shape-rendering="crispEdges" aria-hidden="true">
+   <g class="all">
+    <g class="legs"><rect class="leg l1" x="3" y="6.4" width="1.1" height="2.4"/><rect class="leg l2" x="5" y="6.4" width="1.1" height="2.4"/><rect class="leg l3" x="7.9" y="6.4" width="1.1" height="2.4"/><rect class="leg l4" x="9.9" y="6.4" width="1.1" height="2.4"/></g>
+    <rect class="arm aL" x="0" y="2.8" width="2.2" height="1.8"/><rect class="arm aR" x="11.8" y="2.8" width="2.2" height="1.8"/>
+    <rect class="body" x="2" y="0" width="10" height="6.6"/>
+    <g class="eyes"><rect class="eye" x="4" y="1.6" width="1.2" height="1.6"/><rect class="eye" x="8.8" y="1.6" width="1.2" height="1.6"/></g>
+   </g>
+   <g class="fx think"><rect x="10" y="-2.6" width=".9" height=".9"/><rect x="11.6" y="-3.2" width=".9" height=".9"/><rect x="13.2" y="-3.8" width=".9" height=".9"/></g>
+   <g class="fx bang"><rect x="13" y="-3.8" width="1" height="2.4"/><rect x="13" y="-.9" width="1" height=".9"/></g>
+   <g class="fx spark"><rect x="-.6" y="-2.6" width="1" height="1"/><rect x="13.4" y="-3" width="1" height="1"/><rect x="6.6" y="-3.6" width=".9" height=".9"/></g>
+   <g class="fx zz"><text x="11.5" y="-1" font-size="3.2" font-family="Inter,sans-serif" font-weight="700">z</text></g>
+  </svg>`;
+}
+function spark(size,color='#D97757'){
+  let s='';const n=12;
+  for(let i=0;i<n;i++){const a=i*360/n;const L=i%2?7:9;s+=`<line x1="12" y1="12" x2="12" y2="${12-L}" transform="rotate(${a} 12 12)"/>`;}
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true"><g stroke="${color}" stroke-width="2.4" stroke-linecap="round">${s}</g></svg>`;
+}
+const ring=(sz,sw=2.6)=>`<svg class="ring" width="${sz}" height="${sz}" viewBox="0 0 24 24" aria-hidden="true"><circle class="bg" cx="12" cy="12" r="${12-sw/2-.5}" fill="none" stroke-width="${sw}"/><circle class="fg" cx="12" cy="12" r="${12-sw/2-.5}" fill="none" stroke-width="${sw}" stroke-linecap="round" pathLength="100"/></svg>`;
+const I={
+  pause:'<svg width="14" height="16" viewBox="0 0 14 16"><rect x="1" y="1" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="9" y="1" width="4" height="14" rx="1.2" fill="currentColor"/></svg>',
+  play:'<svg width="14" height="16" viewBox="0 0 14 16"><path d="M2 1.6v12.8a1 1 0 0 0 1.5.86l10.6-6.4a1 1 0 0 0 0-1.72L3.5.74A1 1 0 0 0 2 1.6z" fill="currentColor"/></svg>',
+  out:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="M8 10l3 2-3 2M13 15h3"/></svg>',
+  open:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+  x:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  check:'<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 6.2l2.2 2.2 4.8-5" fill="none" stroke="#04150a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  diff:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 3v12M12 9H0M18 21V9M12 15h12" transform="translate(0 0) scale(.9) translate(1.3 1.3)"/></svg>',
+  timer:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FF9F0A" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>'
+};
+
+/* ── Scenarios ────────────────────────────────────────── */
+const SCN={
+  code:{app:'Claude Code',title:'Refactor auth middleware',done:'Ready for review',
+    doneDetail:'6 files changed · 48/48 tests pass',ask:68,
+    steps:[
+      {verb:'Planning',until:12,mood:'thinking',d:()=>'Mapping the repo'},
+      {verb:'Reading files',until:30,mood:'reading',d:s=>`${Math.max(1,Math.round(s*14))} of 14 files`},
+      {verb:'Writing code',until:68,mood:'writing',d:s=>['middleware.ts','session.ts','tokens.ts','guards.ts'][Math.min(3,Math.floor(s*4))]},
+      {verb:'Running tests',until:95,mood:'testing',d:s=>`${Math.round(s*48)} of 48 passing`},
+      {verb:'Wrapping up',until:100,mood:'thinking',d:()=>'Summarizing changes'}]},
+  chat:{app:'Claude',title:'EV battery market report',done:'Report is ready',
+    doneDetail:'14 pages · 32 sources cited',ask:null,
+    steps:[
+      {verb:'Thinking',until:14,mood:'thinking',d:()=>'Planning the research'},
+      {verb:'Searching the web',until:46,mood:'reading',d:s=>`${Math.max(1,Math.round(s*32))} sources read`},
+      {verb:'Analyzing',until:70,mood:'thinking',d:()=>'Comparing findings'},
+      {verb:'Writing report',until:100,mood:'writing',d:s=>`Section ${Math.min(6,1+Math.floor(s*6))} of 6`}]}
+};
+
+/* ── State ────────────────────────────────────────────── */
+const S={scn:'code',p:0,state:'running',sim:true,elapsed:0,basePres:'compact',pres:'compact',asked:false,denied:false,laOpen:false,lastStep:-1};
+const root=document.documentElement;
+
+/* ── Builders ─────────────────────────────────────────── */
+function islandHTML(pres,isStatic){
+  return `<div class="island" data-pres="${pres}" ${isStatic?'':'id="island" role="button" tabindex="0" aria-label="Claude Live Activity. Touch and hold to expand"'}>
+    <div class="layer L-compact"><div class="lead">${clawd(26)}</div>
+      <div class="trail"><span class="ring-only">${ring(22)}</span><span class="badge inp">!</span><span class="badge ok">${I.check}</span><span class="badge pz">${I.pause.replace('width="14" height="16"','width="8" height="9"')}</span></div></div>
+    <div class="layer L-expanded">
+      <div class="ex-top"><span class="who">${clawd(28)}<span data-t="app"></span></span><span class="time tnum" data-t="elapsed"></span></div>
+      <div class="ex-mid"><div style="min-width:0"><div class="ex-verb" data-t="verb"></div><div class="ex-detail" data-t="detail"></div></div>
+        <button class="icon-btn s-run ib" data-act="pause" aria-label="Pause task">${I.pause}</button>
+        <button class="icon-btn s-pause ib" data-act="resume" aria-label="Resume task">${I.play}</button>
+        <button class="pill green s-done" data-act="open" style="flex:none">${'View'}</button></div>
+      <div class="ex-bottom s-run s-pause s-done" style="display:flex"><div class="track"><div class="fill"></div><span class="end"></span><div class="rail"><div class="walker">${clawd(22)}</div></div></div><span class="pct tnum" data-t="pct"></span></div>
+      <div class="ex-bottom s-input" style="gap:8px"><button class="pill" style="flex:1" data-act="deny">Deny</button><button class="pill primary" style="flex:1" data-act="allow">Allow</button></div>
+    </div>
+    <div class="layer L-minimal"><div class="lead">${I.timer}</div></div>
+    <div class="layer L-limited"><div class="lead"><div class="mini">${ring(28,2.4)}${clawd(16)}</div></div></div>
+  </div>`;
+}
+function detachedHTML(isStatic){return `<div class="detached${isStatic?' on':''}" ${isStatic?'':'id="detached"'}><div class="mini">${ring(30,2.4)}${clawd(17)}</div></div>`;}
+function ticks(){return SCN[S.scn].steps.slice(0,-1).map(s=>`<span class="tick" style="left:${s.until}%"></span>`).join('');}
+function trackHTML(){return `<div class="track"><div class="fill"></div><div class="tickbox">${ticks()}</div><span class="end"></span><div class="rail"><div class="walker">${clawd(30)}</div></div></div>`;}
+function laHTML(isStatic){
+  return `<div class="la" ${isStatic?'':'id="la"'}>
+   <div class="la-inner" id="${isStatic?'':'laMain'}">
+    <div class="la-top"><span class="who">${spark(16)}<span data-t="app"></span> · <span data-t="title"></span></span><span class="time tnum" data-t="elapsed"></span></div>
+    <div class="la-title"><div><div class="la-verb" data-t="verb"></div><div class="la-detail" data-t="detail"></div></div>
+      ${isStatic?'':`<button class="icon-btn s-run ib" data-act="pause" aria-label="Pause task">${I.pause}</button><button class="icon-btn s-pause ib" data-act="resume" aria-label="Resume task">${I.play}</button>`}</div>
+    ${trackHTML()}
+    ${isStatic?'':`<div class="s-input" style="gap:8px;margin-top:16px"><button class="pill" style="flex:1" data-act="deny">Deny</button><button class="pill primary" style="flex:1" data-act="allow">Allow</button></div>`}
+    ${isStatic?'<div style="height:16px"></div>':'<button class="grab" id="grab" aria-label="Show task details" aria-expanded="false"></button>'}
+   </div>
+   ${isStatic?'':`<div class="la-more" id="laMore">
+     <ul class="steps" id="steps"></ul>
+     <div class="chips" id="chips"></div>
+     <div class="acts">
+       <button class="act s-run" data-act="pause">${I.pause}Pause</button>
+       <button class="act s-pause" data-act="resume">${I.play}Resume</button>
+       <button class="act prim s-input" data-act="allow">${I.check.replace('#04150a','currentColor')}Allow</button>
+       <button class="act prim s-done" data-act="open">${I.diff}View diff</button>
+       <button class="act s-run s-pause s-input" data-act="output">${I.out}Output</button>
+       <button class="act" data-act="open">${I.open}Open</button>
+       <button class="act danger s-run s-pause s-input" data-act="cancel">${I.x}Cancel</button>
+       <button class="act s-done" data-act="dismiss">${I.x}Dismiss</button>
+     </div>
+     <div class="confirm"><p>Stop this task? Changes made so far stay on the branch.</p>
+       <div class="row"><button class="pill" data-act="keep">Keep working</button><button class="pill red" data-act="stop">Stop task</button></div></div>
+   </div>`}
+  </div>`;
+}
+function buildPhone(){
+  document.getElementById('islandMount').innerHTML=islandHTML(S.pres,false)+detachedHTML(false);
+  document.getElementById('laMount').innerHTML=laHTML(false);
+  buildSteps();bindPhone();
+}
+function buildGallery(){
+  const t=(cls,cap,inner)=>`<div class="g-tile ${cls}"><div class="g-stage">${inner}</div><div class="cap"><b>${cap[0]}</b><span>${cap[1]}</span></div></div>`;
+  document.getElementById('gallery').innerHTML=
+    t('', ['Compact','Leading + trailing'], islandHTML('compact',true))+
+    t('', ['Minimal','With another activity'], islandHTML('minimal',true)+detachedHTML(true))+
+    t('', ['Limited width','28pt circle'], islandHTML('limited',true))+
+    t('wide', ['Expanded','371 × 156pt'], islandHTML('expanded',true))+
+    t('wide', ['Lock Screen','14pt margins, custom background'], laHTML(true));
+}
+function buildMoods(){
+  const M=[['thinking','Thinking','Bobs, thought dots'],['reading','Reading','Eyes scan the page'],['writing','Writing code','Arms type'],['testing','Running tests','Hops'],['waiting','Needs you','Waves, amber “!”'],['paused','Paused','Eyes shut, z'],['done','Done','Two hops, sparkles']];
+  document.getElementById('moods').innerHTML=M.map(m=>`<div class="mood"><div class="pad">${clawd(64,m[0])}</div><b>${m[1]}</b><span>${m[2]}</span></div>`).join('');
+}
+function buildSteps(){
+  const st=SCN[S.scn].steps;
+  document.getElementById('steps').innerHTML=st.map((s,i)=>`<li data-i="${i}"><span class="dotx"></span><span>${s.verb}</span><span class="meta"></span></li>`).join('');
+  document.querySelectorAll('.tickbox').forEach(b=>b.innerHTML=ticks());
+}
+
+/* ── Derived view ─────────────────────────────────────── */
+function stepAt(p){const st=SCN[S.scn].steps;let i=st.findIndex(s=>p<s.until);if(i<0)i=st.length-1;return i;}
+function view(){
+  const sc=SCN[S.scn],st=sc.steps,i=stepAt(S.p),s=st[i];
+  const from=i?st[i-1].until:0,sub=Math.min(1,(S.p-from)/(s.until-from));
+  let verb=s.verb,detail=s.d(sub),mood=s.mood;
+  if(S.scn==='code'&&i===3&&S.denied){detail='Tests skipped';}
+  if(S.state==='paused'){verb='Paused';detail=`During ${s.verb.toLowerCase()}`;mood='paused';}
+  if(S.state==='input'){verb='Run npm test?';detail='Claude needs your OK';mood='waiting';}
+  if(S.state==='done'){verb=sc.done;detail=sc.doneDetail;mood='done';}
+  const m=Math.floor(S.elapsed/60),sec=Math.floor(S.elapsed%60);
+  return {i,verb,detail,mood,app:sc.app,title:sc.title,elapsed:`${m}:${String(sec).padStart(2,'0')}`,pct:`${Math.round(S.p)}%`};
+}
+
+/* ── Render (bind, never rebuild → loops keep running) ── */
+function render(){
+  const v=view();
+  root.style.setProperty('--p',S.p.toFixed(2));
+  root.dataset.state=S.state;
+  document.querySelectorAll('[data-t]').forEach(el=>{const k=el.dataset.t;if(el.textContent!==v[k])el.textContent=v[k];});
+  const run=S.state==='running'?'1':'0';
+  document.querySelectorAll('.clawd:not(.fixed)').forEach(c=>{if(c.dataset.m!==v.mood)c.dataset.m=v.mood;if(c.dataset.run!==run)c.dataset.run=run;});
+  // steps list
+  document.querySelectorAll('#steps li').forEach(li=>{
+    const k=+li.dataset.i,done=S.state==='done'||k<v.i;
+    li.className=done?'done':k===v.i?'now':'';
+    li.querySelector('.dotx').innerHTML=done?I.check:'';
+    li.querySelector('.meta').textContent=k===v.i&&S.state!=='done'?(S.state==='paused'?'Paused':S.state==='input'?'Waiting on you':view().detail):'';
+  });
+  const files=Math.min(6,Math.round(S.p/100*7)),add=Math.round(S.p*1.42),del=Math.round(S.p*.38);
+  document.getElementById('chips').innerHTML=S.scn==='code'
+    ?`<span class="chip">${files} files</span><span class="chip"><span class="plus">+${add}</span> <span class="minus">−${del}</span></span><span class="chip">Branch: auth-refactor</span>`
+    :`<span class="chip">${Math.round(S.p*.32)} sources</span><span class="chip">${Math.round(S.p*42)} words</span><span class="chip">Opus 5.5</span>`;
+  // panel
+  document.getElementById('pState').textContent={running:'Running',paused:'Paused',input:'Waiting on you',done:'Done'}[S.state];
+  document.getElementById('pPct').textContent=v.pct;
+  const sc=document.getElementById('scrub');if(document.activeElement!==sc)sc.value=S.p;
+  document.getElementById('btnPlay').textContent=S.sim?'Pause simulation':'Play simulation';
+  // island
+  const isl=document.getElementById('island');
+  if(isl.dataset.pres!==S.pres)isl.dataset.pres=S.pres;
+  document.getElementById('detached').classList.toggle('on',S.pres==='minimal');
+  if(v.i!==S.lastStep||S._ls!==S.state){S.lastStep=v.i;S._ls=S.state;document.getElementById('live').innerHTML=`<b>${v.verb}</b> · ${v.detail}`;}
+  document.querySelectorAll('#segPres button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.pres===S.basePres));
+  document.querySelectorAll('#segScn button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.scn===S.scn));
+  if(!dragging)sizeLA();
+}
+
+/* ── Simulation ───────────────────────────────────────── */
+let last=performance.now(),alertT=null;
+function loop(t){
+  const dt=Math.min(.1,(t-last)/1000);last=t;
+  if(S.sim&&S.state==='running'){
+    S.p=Math.min(100,S.p+dt*2.6);S.elapsed+=dt*6;
+    const ask=SCN[S.scn].ask;
+    if(ask!==null&&!S.asked&&S.p>=ask){S.p=ask;S.asked=true;S.state='input';alertExpand(false);}
+    if(S.p>=100){S.state='done';alertExpand(true);}
+  }
+  render();requestAnimationFrame(loop);
+}
+function alertExpand(thenEnd){
+  clearTimeout(alertT);S.pres='expanded';
+  if(thenEnd)alertT=setTimeout(()=>{S.pres='ended';},3200);
+}
+function collapse(){clearTimeout(alertT);if(S.state==='done'){S.pres='ended';return;}if(S.state==='input')return;S.pres=S.basePres;}
+
+/* ── Actions ──────────────────────────────────────────── */
+let toastT;
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),1600);}
+function act(a){
+  const la=document.getElementById('la');
+  switch(a){
+    case 'pause':S.state='paused';break;
+    case 'resume':S.state='running';break;
+    case 'allow':S.state='running';S.p=Math.max(S.p,68.5);setTimeout(collapse,300);toast('Allowed: npm test');break;
+    case 'deny':S.state='running';S.denied=true;S.p=95;setTimeout(collapse,300);toast('Tests skipped');break;
+    case 'output':toast('Opens live output in Claude Code');break;
+    case 'open':toast(`Opens ${SCN[S.scn].app} → ${SCN[S.scn].title}`);break;
+    case 'cancel':la.classList.add('confirming');sizeLA();break;
+    case 'keep':la.classList.remove('confirming');sizeLA();break;
+    case 'stop':la.classList.remove('confirming');restart(false);toast('Task stopped · activity ended');S.pres='ended';S.sim=false;break;
+    case 'dismiss':toast('Activity dismissed');restart(true);break;
+  }
+  render();
+}
+function restart(play=true){S.p=0;S.elapsed=0;S.state='running';S.asked=false;S.denied=false;S.pres=S.basePres;S.sim=play;S.laOpen=false;clearTimeout(alertT);render();}
+
+/* ── Phone interactions ───────────────────────────────── */
+let dragging=false;
+function laHeights(){const m=document.getElementById('laMain'),r=document.getElementById('laMore');return [m.offsetHeight,m.offsetHeight+r.offsetHeight];}
+function sizeLA(h){
+  const la=document.getElementById('la'),[a,b]=laHeights();
+  const H=h??(S.laOpen?b:a);la.style.height=H+'px';
+  document.getElementById('laMore').style.opacity=Math.max(0,Math.min(1,(H-a)/(b-a)));
+  document.getElementById('grab').setAttribute('aria-expanded',S.laOpen);
+  document.getElementById('grab').setAttribute('aria-label',S.laOpen?'Hide task details':'Show task details');
+}
+function bindPhone(){
+  const isl=document.getElementById('island'),scale=()=>parseFloat(getComputedStyle(document.getElementById('phoneHold')).getPropertyValue('--s'));
+  let lpT,long=false;
+  isl.addEventListener('pointerdown',e=>{if(e.target.closest('[data-act]'))return;long=false;
+    lpT=setTimeout(()=>{long=true;if(S.pres!=='expanded'&&S.pres!=='ended')S.pres='expanded';render();},450);});
+  isl.addEventListener('pointerup',e=>{clearTimeout(lpT);if(e.target.closest('[data-act]'))return;
+    if(!long&&S.pres!=='ended')toast(`Opens ${SCN[S.scn].app} → ${SCN[S.scn].title}`);});
+  isl.addEventListener('pointerleave',()=>clearTimeout(lpT));
+  isl.addEventListener('keydown',e=>{if(e.key==='Enter')toast(`Opens ${SCN[S.scn].app}`);if(e.key===' '){e.preventDefault();S.pres=S.pres==='expanded'?S.basePres:'expanded';render();}});
+  document.getElementById('screen').addEventListener('pointerdown',e=>{if(!e.target.closest('.island')&&S.pres==='expanded')collapse();});
+  // Lock Screen pull-to-expand
+  const la=document.getElementById('la');let y0,h0,moved=false,vy=0,lt=0,ly=0;
+  la.addEventListener('pointerdown',e=>{if(e.target.closest('[data-act]'))return;dragging=true;moved=false;y0=ly=e.clientY;lt=e.timeStamp;h0=la.offsetHeight;la.classList.add('dragging');la.setPointerCapture(e.pointerId);});
+  la.addEventListener('pointermove',e=>{if(!dragging)return;const s=scale(),dy=(e.clientY-y0)/s;if(Math.abs(dy)>4)moved=true;
+    vy=(e.clientY-ly)/Math.max(1,e.timeStamp-lt);ly=e.clientY;lt=e.timeStamp;
+    const [a,b]=laHeights();let h=h0+dy;
+    if(h>b)h=b+(h-b)*.25; if(h<a)h=a-(a-h)*.25;  // rubber-band past the ends
+    sizeLA(h);});
+  const end=e=>{if(!dragging)return;dragging=false;la.classList.remove('dragging');
+    const [a,b]=laHeights(),h=la.offsetHeight;
+    if(!moved){if(e.target.closest('#grab')){S.laOpen=!S.laOpen;}else if(e.type==='pointerup'){toast(`Opens ${SCN[S.scn].app} → task`);}}
+    else S.laOpen=Math.abs(vy)>.5?vy>0:h>(a+b)/2;
+    sizeLA();};
+  la.addEventListener('pointerup',end);la.addEventListener('pointercancel',end);
+  document.getElementById('grab').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();S.laOpen=!S.laOpen;sizeLA();}});
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(b&&!b.closest('#gallery'))act(b.dataset.act);});
+
+/* ── Panel ────────────────────────────────────────────── */
+document.getElementById('segScn').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.dataset.scn===S.scn)return;S.scn=b.dataset.scn;buildSteps();restart(true);});
+document.getElementById('segPres').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.pres==='expanded'){S.pres='expanded';}else{S.basePres=b.dataset.pres;if(S.state!=='done')S.pres=S.basePres;}
+  document.querySelectorAll('#segPres button').forEach(x=>x.setAttribute('aria-pressed',x===b));render();});
+document.getElementById('scrub').addEventListener('input',e=>{S.p=+e.target.value;
+  const ask=SCN[S.scn].ask;if(ask!==null&&S.p<ask){S.asked=false;S.denied=false;}
+  if(S.state==='done'&&S.p<100){S.state='running';S.pres=S.basePres;}
+  if(S.state==='input'&&S.p!==ask)S.state='running';
+  S.elapsed=S.p*2.3;});
+document.getElementById('btnPlay').onclick=()=>{S.sim=!S.sim;if(S.state==='done'&&S.sim)restart(true);};
+document.getElementById('btnRestart').onclick=()=>restart(true);
+document.getElementById('rmTog').onchange=e=>root.classList.toggle('rm',e.target.checked);
+
+/* ── Fit phone to viewport ───────────────────────────── */
+function fit(){const s=Math.max(.55,Math.min(.92,(innerHeight-60)/876));document.getElementById('phoneHold').style.setProperty('--s',s.toFixed(3));}
+addEventListener('resize',fit);
+
+document.getElementById('hdrSpark').innerHTML=spark(14);
+fit();buildPhone();buildGallery();buildMoods();render();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
